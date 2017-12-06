@@ -1,314 +1,193 @@
-# gs-JSON
+[![Build Status](https://travis-ci.org/phtj/gs-json.svg?branch=master)]
+# gs-json
 
-gs-JSON is a general file format for modelling with geometry and semantics. The geometry includes both polygonal and spline based geometry. Semantics can be added to any geometric entity or collection of entities.
+gs-json is a domain agnostic unifying 3D file format for geometric and semantic modelling (hence the 'gs'). 
 
-# Geometry
-Geometric entities are interconnected into a topological hierarchy. 
+See the API docs: https://phtj.github.io/gs-json
 
-## Topological Hierarchy
-The topological hierarchy is follows:
-* 0D Topology
-  * VERTEX = geometry
-* 1D Topology
-  * EDGE = geometry bounded by VERTICES
-  * WIRE = geometry: a set of one or more VERTEX connected EDGES
-* 2D Topology
-  * FACE = geometry bounded by one or more closed WIRES
+# Conceptual Model
+The gs-json conceptual model uses topology as the organising framework for defining both geometry and semantics.
 
-#### Wires
-Each WIRE has:
-* a set of connected EDGES (implicit), each of which has
-* a sequence of VERTICES (implicit), each of which is
-* associated with a single point.
+Geometry consists of objects, and includes both polygonal and spline based geometry. Semantics consists of data linked to objects and groups of objects in the model.
 
-#### Faces
-Each FACE has:
-* a set of closed WIRES (implicit), each of which has
-* a set of connected EDGES (implicit), each of which has
-* a sequence of VERTICES (implicit), each of which is
-* associated with a single point.
-    
-#### Implicit Entities
-Internal entities are not explicitly represented. They nevertheless still exist implicitly. For example, a polygonal has an explicitly defined FACE and POINTS, but the WIRES, EDGES and VERTICES are all implicit. 
+## Topology
+Each geometric object consists of a set of topological components.
+The topological component hierarchy is follows:
+* 0D Components
+  * POINT = a point is space.
+  * VERTEX = a location in space associated with a single POINT.
+* 1D Components
+  * EDGE = a line or curve bounded by start and end VERTICES.
+  * WIRE = a set of one or more connected EDGES, either open or closed.
+* 2D Components
+  * FACE = a face bounded by a closed WIRE, with zero or more holes each bounded by a closed WIRE.
 
-Other higher level topologies (such as shells, solids, and compound solids) can be created using *collections*. See below for more details. 
+The most basic types of geometric entities are:
+* Point
+* Objects
+  * Polylines
+  * Polymeshes
 
-## Geometric Entities
-The geometric entities are as follows:
-* 0D VERTICES:
-  * 0 - Acorn
-  * 1 - Ray
-  * 2 - Plane
-* 1D WIRES, an array of:
+### Points
+The base data to which everything else is connected is a set of points in space. 
+There is a one to many relationship between points and vertices:
+* A point can be associated with many vertices.
+* A vertex is associated with a single point. 
+
+### Polylines
+The topology of a polyline consists of a single wire.
+Each wire has:
+* a set of connected edges, and
+* a sequence of vertices.
+
+### Polymeshes
+The topology of a polymesh consists of wires and faces.
+
+The wires represent the naked edges of the polymesh. Since a polymesh can have holes, there may be more than one naked edge. A polymesh can also have no naked edges, in which case it is a closed solid. 
+
+Wires have:
+* a set of connected edges, and
+* a sequence of vertices.
+
+The faces have:
+* a set of connected edges forming a closed loop, each of which has
+* a sequence of vertices.
+
+### Shared Points and Vertices
+Vertices can share points. For example, a box can be created that has 8 points and 24 vertices (6 faces x 4 vertices). Each point is therefore referenced by three vertices. 
+
+Edges that belong to the same wire or face share vertices. For example, an open wire with two edges will share have three vertices. The middle vertex will be shared by two edges.
+
+Hhigher level components cannot be shared. For example, an edge cannot be part of two faces. Thus, if two faces have edges touching, then the points can be shared, but there will still be seperate EDGES, each with its own vertices. 
+
+## Geomety
+The geometric objects together with their type identifiers are as follows:
+* 0D Objects:
+  * 0 - Acorn //not implemented
+  * 1 - Ray //not implemented
+  * 2 - Plane //not implemented
+* 1D Objects:
   * 100 - Polyline
-  * 130 - NURBS curve
-  * 131 - Bezier curve
-* 2D FACES:
-  * 200 - Polygon
-  * 230 - NURBS Surface
-  * 231 - Bezier Surface
+  * 120 - NURBS curve //not implemented
+  * 121 - Bezier curve //not implemented
+* 2D Objects:
+  * 200 - Polymesh
+  * 220 - NURBS Surface //not implemented
+  * 221 - Bezier Surface //not implemented
 
-More geometric entities may be added in the future.
+More geometric objects may be added in the future.
 
-#### Point Arrays
-All geometric entities references arrays of POINTS. Multiple geometric entities can reference the same POINTS. For example, a box can be created that has 8 points and 24 vertices (6 faces x 4 vertices). Each POINT is therefore referenced by three vertices. 
+Other higher level objects (such as solids) can be created using *collections*. See below for more details. 
 
-POINTS may be defined using different coordinate systems (2D, 3D, cartesian, polar, spherical). For example, a 2D cartesian POINTS array may look like this:
-* [[0.1,0.2],[0.3,0.4], ...]
+### Implicit Topology
+In order to ensure that the file format is efficient and compact, topological components are not explicitly represented. They nevertheless still exist implicitly. For example, a polygonal mesh has implicit faces, wires, edges, and vertices. 
 
-Each POINT array is associated with a transformation matrix that will transform the points in the array into the global 3D cartesian coordinate system. The origin of this global coordinate system is located at the *location* specific in the metadata. 
+## Semantics
+Semantic information can be added to the model in two ways:
 
-VERTICES index the POINTS in the point arrays as follows:
-* [array number, point number]
+1. by specifying *attributes* linked to the topological components inside obejcts, and/or
+1. by specifying *properties* linked to nested groups of geometric objects.   
 
-#### Wire/Face Arrays
-For maximum compactness, WIRES and FACES are represented using integer arrays, consisting of three elements as follows: 
-* [type, [point indices], additional parameters]
+These two approaches to adding semantics to a model are based on existing approaches in specific domains. Attributes are similar to the way sematics are specified in existing geospatial file formats such as geojson. However, in gs-json, the concept of attributes has been further generalised, allowing them to be added to topological components that are implicit within geometric objects. Properties are similar to the way semantics are specified in existing product modelling file formats such as the various STEP formats. Geometric objects can be groups into collections, and possible organised into part-whole hierarchies, with properties being specified for each level of the hierarchy. However, gs-json does not specify any domain-specific semantics.
 
-So, for example, a polyline is defined as follows:
-* [100,[[0,0],[0,1],[0,2],[0,3]],0]
+# JSON Encoding of Geometry
+Within a gs-json file, the geometry is defined in two arrays. Points are specified in the "points" array. 
+```javascript
+"points": [
+	[...], //values_map
+	[...]  //values
+]
+```
+Objects are specified in the "objs" array.
+```javascript
+"objs": [
+	[...], //obj0
+	[...], //obj1
+	[...]  //obj2
+]
+```
+## Geometric Objects
+Objects are represented using integer arrays, consisting of three sub-arrays as follows: 
+* [[wires], [faces], [parameters]]
+
+### Polylines
+A example of a polyline:
+* [[[0,1,2,3,-1]], [], [100]]
 
 This represents the following:
-1. type = 100, i.e. polyline
-1. point indices = [[0,0],[0,1],[0,2],[0,3]], referring to the arrays of points. 
-1. additional parameters = 0, open polyline
+1. a single wire, with point indices 0,1,2,3,-1 (the last vertex being -1 indicates that it must be closed.)
+1. no faces
+1. one parameter, type = 100, i.e. polyline.
 
-The third element may in some cases be omitted. 
-For example, a polygon has no parameters. 
+Polylines can be open or closed. A closed polyline is not the same as a polygon. 
 
-# Semantics
-Semantic information can be added to the model in two ways: *attributes* and *collections*. 
+### Polygon Meshes
+An example of a polygon mesh:
+* [[[60,61,62,63,-1]], [[60,61,63,-1], [61,62,63,-1]], [200]]
+
+This represents the following:
+1. a single closed wire with 4 point indices 60,61,62,63,60
+1. two triangular faces 60,61,63,60 and 61,62,63,61
+1. one parameter, type = 200, i.e. polygon mesh
+
+Polygon meshes have faces and wires, both of which are always closed. The wires represent the naked edges of the mesh. A mesh with no wires is a solid. 
+
+# JSON Encoding of Semantics
+Within a js-JSON file, all semantics is defined in attributes and groups.
 
 ## Attributes
-Attributes can be defined for POINTS, VERTICES, EDGES, WIRES and FACES. When an attribute is defined, all entities of that type will be assigned a value.
+```javascript
+"attribs":  {
+	"points":[{...}, ...],
+	"vertices":[{...},...],
+	"edges":[{...},...],
+	"wires":[{...}, ...],
+	"faces":[{...}, ...],
+	"objs":[{...}, ...]
+}
+```
+Attributes are defined as follows:
+* {"name"="my_attrib", "geom_type"="xxx", "data_type"="xxx", "values"=[...]}
 
-The array of values may typically be sparse (i.e. there may be many 'null' values) and may contain many repeat values. An efficient reveresed key-value datastructure is used. (The keys are the attribute values, and the values are arrays of entity numbers.)
+*geom_type* can be "points", "vertices", "edges", "wires", "faces".
 
-For example, for the arry of values below:
-* [null,'a','b','c','a',null,null,null,'b','c','b','c','a','b','b','c',null,null]
+*data_type* can be "string", "number","boolean","string[]","number[]","boolean[]".
 
-The represented is as follows: 
-    {
-        "a":[1,4,12],
-        "b":[2,8,10,13,14],
-        "c":[3,9,11,15]
-    }
+*values* consists of two arrays the define the values for the attribute. These values are associated with the geometry based on the "geom_type" setting. One array contains a set of indexes, and the other a set of unique values. The indexes point to the unique values. The values must follow the data type specified in *data_type*.
+ 
 
-## Collections
-Collections can have user defined properties, which are define as key-value pairs. 
+### Viewer Attributes
+Certain attributes may be recognised by the viewer. (This of course dpeends on the implementation of the viewer.)
+ 
+* position - the position of the point, in 3d [x,y.z] or 2d [x,y].
+* normal - the point normal vector, in 3d [x,y.z].
+* colour - the point colour, as [r,g,b].
+ 
+## Groups
+```javascript
+"groups": [ 
+	{...},
+	{...},
+	{...},
+	//...
+]
+```
+A group can contain geometric objects. Geometric objects may be contained in more than one group.
 
-A collection can contain:
-* a set of entities (possibly mixed topologival types, including implicit entities), and
-* other collections.
+Each group can have a single parent group. This allows groups to form a hierarchy. If no parent is defined, the the group is assumed to be a *root* or *top-level* group. 
 
-The set of entities inside a collection are defined by indexing the geometry (i.e. the FACES, WIRES, EDGES, VERTICES, and POINTS). 
+Groups are defined as follows: 
+* {"name"="my_coll", "objs"=[...], "parent"=[...], "props"={"key1":value1, "key2":value2, ...}}
 
-#### Indexing Geometry
-In order to identify the entities and sub-entities in a collection, indexing arrays are used.
+*objs* is an integer array of objects indices. 
 
-The basic form of these arrays is as follows:
-* For WIRES: [wire_number, edge_number, vertex_number]
-* For FACES: [face_number, wire_number, edge_number, vertex_number]
+*parent* is the name of teh parent group (i.e. a striing). 
 
-For example:
-* wire 0, edge 1, vertex 0:
-  * [0,1,0] 
-* face 0, wire 1, edge 2, vertex 0:
-  * [0,1,2,0] 
-
-An index array may be truncated.
-For example, 
-* face 0, wire 1, edge 2:
-  * [0,1,2] No need to specify any vertices.
-
-An index value may use right side indexing, i.e. negative numbers (c.f. Python slicing).
-For example:
-* face 0, wire 1, last edge:
-  * [0,1,-1]
-
-An index value may be 'null', indicating that the level should be skipped.
-For example:
-* face 0, skip wires, skip edges, vertex 10:
-  * [0,null,null,10]
-
-An index value may specofy a range, as follows: [from, to, step]. The 'step' may be omitted, in which case it is assumed to be 1. 
-For example:
-* face 0, wire 1, edges 2 to 4:
-  * [0,1,[2,4]]
-* face 0, wire 1, last three edges:
-  * [0,1,[-3,-1]]
-* face 0, wire 1, all edges:
-  * [0,1,[0,-1]]
-
-The above may all be combined.
-For example:
-* face 0, skip wires, every other edge, start vertex:
-  * [0,null,[0,-1,2],0]
+*props* is an object containing a set of key-value pairs. The key is a string, and is the name of the property. The value can be any valid JSON type. 
 
 # Example
 
-WORK IN PROGRESS.
+There are some examples files here:
+* https://github.com/phtj/gs-json/tree/master/src/assets/gs-json
 
-Note: javascript comments are used in these examples even though comments are not technically allowed in JSON.
 
-```javascript
-{
-    //---------------------------------------------------------------------------------------------
-    "metadata": {
-	    "filetype":"mobius",
-            "version": 1.0,
-            "schema":"xxx",
-            "crs": {"epsg":3857},
-	    "location": "+40.6894-074.0447" //ISO 6709, ±DD.DDDD±DDD.DDDD degrees format
-    },
-    //---------------------------------------------------------------------------------------------
-    "skins": {
-        //See https://github.com/mrdoob/three.js/wiki/JSON-Texture-format-4
-        "images": [],    //based on three.js
-        "textures": [],  //based on three.js
-        "materials": [  //based on three.js
-            {...},
-            {...},
-            {...}
-        ], 
-    }
-    //---------------------------------------------------------------------------------------------
-    "geometry": {
-        "points": [
-	    [
-                [[1.2,3.4],[5.6,7.8],[9.10,11.12], ....],            //array of 2d [x,y] coordinates
-	        [1,0,0,20, 0,1,0,0, 0,0,1,0, 0,0,0,1]                //point transformation matrix, 4x4
-	    ],
-	    [
-                [[0.1,0.2,0.3],[1.4,1.5,1.6],[2.7,2.8,2.9], ....],   //array of 3d [x,y,z] coordinates
-	        [1,0,0,30, 0,1,0,0, 0,0,1,0, 0,0,0,1]                //point transformation matrix, 4x4
-	    ],
-	    [
-                [[1.1,1.2,1.3],[2.4,2.5,2.6],[3.7,3.8,3.9], ....]    //array of 3d [x,y,z] coordinates
-	        [1,0,0,40, 0,1,0,0, 0,0,1,0, 0,0,0,1]                //point transformation matrix, 4x4
-	    ]
-        ]
-        "vertices": [
-            [0, [0,0]],            //acorn   [type, [origin vtx_id]]
-            [1, [0,0], [1,1,1]],   //ray     [type, [origin vtx_id], [ray vector]]
-            [2, [1,1], [1,0,0]]    //plane   [type, [origin vtx_id], [plane normal vector]]
-	    //...
-        ]
-        "wires": [
-            [100, [[0,0],[0,1],[0,2],[0,3]], 0],   //planar open polyline, open (3 edges)  [type, [vtx_ids], [open_closed]]
-            [100, [[1,0],[1,1],[1,2],[1,3]], 1],   //3d closed polylines (4 edges)         [type, [vtx_ids], [open_closed]]
-	    //...
-        ]
-        "faces": [
-            [200, [[[2,50],[2,51],[2,52],[2,53]]]],                //polygon              [type, [[periphery vtx_ids]], []]
-            [200, [[[1,60],[1,61],[1,62]],[[1,3],[1,4],[1,5]]]],   //polygon with a hole  [type, [[periphery vtx_ids],[hole 1 vtx_ids],[hole 1 vtx_ids]]]
-	    //...
-        ]
-    }
-    //---------------------------------------------------------------------------------------------
-    "semantics": {
-        "attributes": [
-            {//some data attached to all the POINTS 
-                "uuid":"xxxxx",
-                "name":"trees",
-                "level":"points", 
-                "values": {
-                    "raintree":[1,3,5,6,7,8,11,...],
-                    "oaktree":[2,3,20,22,...],
-                    //...
-                }
-            },
-            {//some data attached to all the implicit EDGES
-                "uuid":"xxxxx",
-                "name":"construction",
-                "level":"edges" 
-                "values": {
-                    "timber":[5,23,67,99,...],
-                    "steel":[25,27,44,52,...],
-                    "concrete":[1,45,46,87,...],
-                    //...
-                }
-            },
-            {//some data attached to all the FACES
-                "uuid":"xxxxx",
-                "name":"insolation",
-                "level":"faces" 
-                "values": {
-                    123:[1],
-                    567:[2],
-                    264:[3],
-                    422:[4],
-                    124:[5],
-                    //...
-                }
-            },
-            {//the viewer may "recognise" this attrib and render the geometry accordingly
-                "uuid":"xxxxx",
-                "name":"materials",
-                "level":"faces"
-                "values": {
-                    0:[1,2,4,6,7],
-                    1:[8,9,12,44,66],
-                    2:[55,77],
-                    //...
-                }            
-            },
-            {//the viewer may "recognise" this attrib and render the geometry accordingly
-                "uuid":"xxxxx",
-                "name":"color",
-                "level":"vertices"
-                "values": {
-                    [0.3,0.2,0.4]:[1,2,4,6,7],
-                    [0.7,0.2,0.3]:[8,9,12,44,66],
-                    //...
-                }            
-            },
-            {//the viewer may "recognise" this attrib and render the geometry accordingly
-                "uuid":"xxxxx",
-                "name":"normals":
-                "level":"vertices"
-                "values": {
-                    [0.0,0.0,1.0]:[1,3,5,7,9,...],
-                    [0.0,1.0,1.0]:[2,4,6,8,...],
-                    [1.0,0.0,1.0]:[10,20,30,40,...],
-                    //....
-                }
-            }
-        },
-        "collections": {
-            {//Empty collection (which is ok), it has some properties
-                "uuid":"xxxxx", 
-                "name":"no_geometry",
-                "properties": {"key1":value1, "key2":value2, ...},
-            },
-            {//A collection containing two EDGES. It has no properties (which is ok).
-                "uuid":"xxxxx",  
-                "name":"some_edges", //user defined name
-                "faces":[[0,0,[0,-1,2]]], //first face, first wire, every other edge (uses ranges)
-            },
-            {//A collection containing two WIRES
-                "uuid":"xxxxx", 
-                "name":"two_wires",
-                "faces":[[1,0],[1,1]],
-                "properties": {"key1":value1, "key2":value2, ...}
-            },
-            {//A collection containing some other collections.
-                "uuid":"xxxxx", 
-                "name":"coll_of_colls",
-                "collections":["no_geometry", "one_vertex"],
-                "properties": {"key1":value1, "key2":value2, ...}
-            },
-            {//A collection containing some random stuff.
-                "uuid":"xxxxx", 
-                "name":"everything_all_mixed_up",
-                "vertices":[0,1,2],                         //three vertices
-                "wires":[[0,1],[1,0]],                      //two edges, in wires
-                "faces":[[0,0,1],[1,1,0]],                  //another two edges, in faces
-                "collections":["coll_of_colls"],            //a collection
-                "properties": {"key1":value1, "key2":value2, ...}
-            }
-        }
-    }
-    //---------------------------------------------------------------------------------------------
-}
-````
